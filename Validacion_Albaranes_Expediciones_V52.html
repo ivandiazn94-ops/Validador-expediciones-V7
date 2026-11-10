@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validación Albaranes Expediciones</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+body{font-family:Arial,sans-serif;background:#eef2f7;margin:0;padding:12px;text-align:center;color:#1f2937}
+.card{max-width:850px;margin:auto;background:white;border-radius:20px;padding:20px;box-shadow:0 4px 15px rgba(0,0,0,.15)}
+.header{background:#0f766e;color:white;padding:15px;border-radius:14px;margin-bottom:15px}
+.header h1{margin:0;font-size:28px}.header p{margin:4px 0 0 0}
+#reader{max-width:500px;margin:auto;overflow:hidden;border-radius:15px}
+.inputbox{background:#f8fafc;border:2px solid #e5e7eb;border-radius:12px;padding:10px;margin:8px 0}
+.label{font-weight:bold;color:#0f766e}
+input{width:95%;padding:10px;border:none;background:transparent;text-align:center;font-size:18px}
+button{padding:14px 20px;border:none;border-radius:10px;background:#0f766e;color:white;font-size:18px;margin:6px}
+#paso{font-size:20px;font-weight:bold;padding:10px}
+.okfull,.kofull{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:white}
+.okfull{background:#16a34a}.kofull{background:#dc2626}
+.big{font-size:110px}.msg{font-size:42px;font-weight:bold}.sub{font-size:24px;margin-top:10px}
+#historial{max-height:320px;overflow:auto;text-align:left;margin-top:15px}
+.item{border-bottom:1px solid #ddd;padding:8px;font-size:14px}.item img{max-width:85px;border-radius:8px;margin-top:5px}
+.oktag{color:#16a34a;font-weight:bold}.errtag{color:#dc2626;font-weight:bold}
+</style></head><body>
+<div class="card">
+<div class="header"><h1>📦 Validación Albaranes Expediciones</h1><p>Comparación automática de códigos</p></div>
+<div id="paso">Pulse INICIAR CÁMARA</div>
+<div id="reader"></div>
+<div class="inputbox"><div class="label">📄 Lectura 1</div><input id="c1" readonly></div>
+<div class="inputbox"><div class="label">📦 Lectura 2</div><input id="c2" readonly></div>
+<button onclick="iniciarCamara()">📷 Iniciar cámara</button>
+<h3>Historial últimos 30 días</h3><div id="historial"></div></div>
+<script>
+let qrScanner=null,codigo1='',codigo2='',bloqueo=false,ultimoFrame='';const DIAS=30;
+function cargarHist(){let h=JSON.parse(localStorage.getItem('historialV52')||'[]');let lim=Date.now()-DIAS*24*60*60*1000;h=h.filter(x=>new Date(x.fechaISO).getTime()>lim);localStorage.setItem('historialV52',JSON.stringify(h));document.getElementById('historial').innerHTML=h.map(x=>`<div class=item><b>${x.fecha}</b> <span class='${x.resultado==='OK'?'oktag':'errtag'}'>${x.resultado}</span><br>${x.c1}<br>${x.c2}<br><img src='${x.img}'></div>`).join('');}
+function guardar(r){let h=JSON.parse(localStorage.getItem('historialV52')||'[]');h.unshift({fecha:new Date().toLocaleString(),fechaISO:new Date().toISOString(),resultado:r,c1:codigo1,c2:codigo2,img:ultimoFrame});localStorage.setItem('historialV52',JSON.stringify(h));cargarHist();}
+function beep(f,d){const c=new(window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.start();o.stop(c.currentTime+d/1000);}
+async function cerrarCamara(){if(qrScanner){try{await qrScanner.stop();}catch(e){}try{await qrScanner.clear();}catch(e){}qrScanner=null;}}
+function limpiarCampos(){codigo1='';codigo2='';ultimoFrame='';c1.value='';c2.value='';paso.innerHTML='📷 Pulse INICIAR CÁMARA';}
+async function mostrar(ok){let d=document.createElement('div');d.className=ok?'okfull':'kofull';d.innerHTML=ok?`<div class='big'>✅</div><div class='msg'>ALBARÁN VALIDADO</div><div class='sub'>${codigo1}</div>`:`<div class='big'>❌</div><div class='msg'>ERROR DE VALIDACIÓN</div><div class='sub'>${codigo1} ≠ ${codigo2}</div>`;document.body.appendChild(d);guardar(ok?'OK':'ERROR');if(ok){beep(950,200);}else{beep(250,500);}await cerrarCamara();setTimeout(()=>{d.remove();limpiarCampos();},3000);}
+function procesar(t){if(bloqueo)return;bloqueo=true;if(!codigo1){codigo1=t;c1.value=t;paso.innerHTML='✅ Primera lectura correcta. Escanee la segunda.';}else if(!codigo2){codigo2=t;c2.value=t;mostrar(codigo1===codigo2);}setTimeout(()=>bloqueo=false,1200);}
+function iniciarCamara(){if(qrScanner)return;codigo1='';codigo2='';c1.value='';c2.value='';paso.innerHTML='📷 Escanee la primera etiqueta';qrScanner=new Html5Qrcode('reader');qrScanner.start({facingMode:'environment'},{fps:10,qrbox:250},(txt)=>{try{let v=document.querySelector('video');if(v){let c=document.createElement('canvas');c.width=v.videoWidth||320;c.height=v.videoHeight||240;c.getContext('2d').drawImage(v,0,0,c.width,c.height);ultimoFrame=c.toDataURL('image/jpeg',0.5);}}catch(e){}procesar(txt);}).catch(()=>{qrScanner=null;alert('No se pudo abrir la cámara');});}
+window.onload=cargarHist;
+</script></body></html>
